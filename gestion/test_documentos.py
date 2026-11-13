@@ -89,6 +89,23 @@ class DocumentosAPITests(TestCase):
         self.assertEqual(respuesta.status_code, 201, respuesta.data)
         self.assertEqual([item["expediente"] for item in respuesta.data], [self.uno.pk, self.dos.pk])
 
+    def test_formulario_navegable_acepta_token_csrf_en_ambas_modalidades(self):
+        una_ficha = self.client.post(f"/api/expedientes/{self.uno.pk}/documentos/", {
+            "csrfmiddlewaretoken": "token-del-formulario",
+            "archivos": [archivo("primero.pdf"), archivo("segundo.pdf")],
+        }, format="multipart")
+        self.assertEqual(una_ficha.status_code, 201, una_ficha.data)
+        self.assertEqual(len(una_ficha.data), 2)
+
+        varias_fichas = self.client.post("/api/documentos/carga-masiva/", {
+            "csrfmiddlewaretoken": "token-del-formulario",
+            "expedientes": f"{self.uno.pk},{self.dos.pk}",
+            "archivos": [archivo("tercero.pdf"), archivo("cuarto.pdf")],
+        }, format="multipart")
+        self.assertEqual(varias_fichas.status_code, 201, varias_fichas.data)
+        self.assertEqual([item["expediente"] for item in varias_fichas.data], [self.uno.pk, self.dos.pk])
+        self.assertEqual(DocumentoExpediente.objects.count(), 4)
+
     def test_api_navegable_muestra_selector_multiple(self):
         respuesta = self.client.get("/api/documentos/carga-masiva/", HTTP_ACCEPT="text/html")
         self.assertEqual(respuesta.status_code, 200)

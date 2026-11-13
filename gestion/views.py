@@ -103,7 +103,8 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
 
 def cargar_documentos(request, expedientes, *, claves_permitidas):
     archivos = request.FILES.getlist("archivos")
-    extras = set(request.data) - claves_permitidas
+    # La API navegable agrega este campo oculto al formulario para la protección CSRF.
+    extras = set(request.data) - claves_permitidas - {"csrfmiddlewaretoken"}
     if extras:
         raise ValidationError({campo: "Campo no admitido." for campo in sorted(extras)})
     if not 1 <= len(archivos) <= MAX_ARCHIVOS:
