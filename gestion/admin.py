@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Acta, CambioColegiatura, ConfiguracionSistema, Expediente, PerfilUsuario, RegistroAuditoria
+from .models import Acta, CambioColegiatura, ConfiguracionSistema, DocumentoExpediente, Expediente, PerfilUsuario, RegistroAuditoria
 
 
 @admin.register(Expediente)
@@ -17,6 +17,7 @@ class PerfilUsuarioAdmin(admin.ModelAdmin):
 
 
 admin.site.register(Acta)
+admin.site.register(DocumentoExpediente)
 admin.site.register(CambioColegiatura)
 admin.site.register(RegistroAuditoria)
 admin.site.register(ConfiguracionSistema)

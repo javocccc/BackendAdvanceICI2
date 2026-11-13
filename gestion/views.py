@@ -2,18 +2,20 @@ from django.db import transaction
 from django.db.models import Count, Q
 from django.http import FileResponse
 from django.utils import timezone
-from rest_framework import filters, generics, viewsets
+from rest_framework import filters, generics, mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import SAFE_METHODS
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import Acta, CambioColegiatura, Expediente, PerfilUsuario, RegistroAuditoria
+from .documentos import MAX_ARCHIVOS, validar_documento
+from .models import Acta, CambioColegiatura, DocumentoExpediente, Expediente, PerfilUsuario, RegistroAuditoria
 from .permissions import PermisoActa, PermisoExpediente
 from .serializers import (
-    ActaSerializer, CambioColegiaturaSerializer, ExpedienteSerializer,
+    ActaSerializer, CambioColegiaturaSerializer, CargaDocumentosSerializer,
+    DocumentoExpedienteSerializer, ExpedienteSerializer,
     NuevoEstadoColegiaturaSerializer, PerfilUsuarioSerializer, RegistroAuditoriaSerializer,
 )
 
@@ -83,6 +85,106 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
         if request.user.perfil.rol == PerfilUsuario.Rol.ESTUDIANTE:
             raise PermissionDenied("El historial de auditoría es interno.")
         return Response(RegistroAuditoriaSerializer(expediente.auditoria.all(), many=True).data)
+
+    @action(
+        detail=True, methods=["get", "post"], url_path="documentos",
+        parser_classes=[MultiPartParser, FormParser], serializer_class=CargaDocumentosSerializer,
+    )
+    def documentos(self, request, pk=None):
+        expediente = self.get_object()
+        if request.method == "GET":
+            return Response(DocumentoExpedienteSerializer(
+                expediente.documentos.all(), many=True, context={"request": request}
+            ).data)
+        return cargar_documentos(request, [expediente] * len(request.FILES.getlist("archivos")),
+                               claves_permitidas={"archivos"})
+
+
+def cargar_documentos(request, expedientes, *, claves_permitidas):
+    archivos = request.FILES.getlist("archivos")
+    extras = set(request.data) - claves_permitidas
+    if extras:
+        raise ValidationError({campo: "Campo no admitido." for campo in sorted(extras)})
+    if not 1 <= len(archivos) <= MAX_ARCHIVOS:
+        raise ValidationError({"archivos": f"Envíe entre 1 y {MAX_ARCHIVOS} archivos."})
+    if len(expedientes) != len(archivos):
+        raise ValidationError({"expedientes": "Debe indicar un expediente por cada archivo."})
+
+    # Se valida el lote completo antes de guardar; un archivo incorrecto impide toda la carga.
+    datos = [validar_documento(archivo) for archivo in archivos]
+    creados = []
+    archivos_guardados = []
+    try:
+        with transaction.atomic():
+            for (archivo, expediente, (nombre, tipo)) in zip(archivos, expedientes, datos):
+                documento = DocumentoExpediente(
+                    expediente=expediente, nombre_original=nombre,
+                    tipo=tipo, tamano=archivo.size, cargado_por=request.user,
+                )
+                documento.archivo.save(nombre, archivo, save=False)
+                archivos_guardados.append((documento.archivo.storage, documento.archivo.name))
+                documento.save()
+                creados.append(documento)
+                RegistroAuditoria.objects.create(
+                    expediente=expediente, usuario=request.user, accion="documento",
+                    detalles=f"Archivo cargado: {nombre}",
+                )
+    except Exception:
+        # El rollback de la BD no borra archivos ya escritos en el almacenamiento.
+        for almacenamiento, nombre in archivos_guardados:
+            almacenamiento.delete(nombre)
+        raise
+    return Response(DocumentoExpedienteSerializer(
+        creados, many=True, context={"request": request}
+    ).data, status=status.HTTP_201_CREATED)
+
+
+class DocumentoExpedienteViewSet(
+    mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.DestroyModelMixin, viewsets.GenericViewSet
+):
+    serializer_class = DocumentoExpedienteSerializer
+    permission_classes = [PermisoActa]
+    parser_classes = [MultiPartParser, FormParser]
+    filterset_fields = ["expediente", "tipo"]
+
+    def get_queryset(self):
+        perfil = getattr(self.request.user, "perfil", None)
+        if not perfil or not perfil.activo:
+            return DocumentoExpediente.objects.none()
+        if perfil.rol == PerfilUsuario.Rol.ESTUDIANTE:
+            return DocumentoExpediente.objects.filter(expediente_id=perfil.expediente_id)
+        return DocumentoExpediente.objects.all()
+
+    @action(detail=False, methods=["post"], url_path="carga-masiva", serializer_class=CargaDocumentosSerializer)
+    def carga_masiva(self, request):
+        archivos = request.FILES.getlist("archivos")
+        ids = request.data.getlist("expedientes")
+        if len(ids) != len(archivos):
+            raise ValidationError({"expedientes": "Repita el identificador del expediente por cada archivo."})
+        if any(not valor.isdecimal() or int(valor) < 1 for valor in ids):
+            raise ValidationError({"expedientes": "Cada identificador debe ser un entero positivo."})
+        encontrados = Expediente.objects.in_bulk(int(valor) for valor in ids)
+        if len(encontrados) != len(set(map(int, ids))):
+            raise ValidationError({"expedientes": "Uno o más expedientes no existen."})
+        destinos = [encontrados[int(valor)] for valor in ids]
+        return cargar_documentos(request, destinos, claves_permitidas={"archivos", "expedientes"})
+
+    def perform_destroy(self, instance):
+        archivo = instance.archivo
+        expediente = instance.expediente
+        nombre = instance.nombre_original
+        instance.delete()
+        archivo.delete(save=False)
+        RegistroAuditoria.objects.create(
+            expediente=expediente, usuario=self.request.user, accion="documento",
+            detalles=f"Archivo eliminado: {nombre}",
+        )
+
+    @action(detail=True, methods=["get"], url_path="descargar")
+    def descargar(self, request, pk=None):
+        documento = self.get_object()
+        return FileResponse(documento.archivo.open("rb"), as_attachment=True,
+                            filename=documento.nombre_original)
 
 
 class ActaViewSet(viewsets.ModelViewSet):

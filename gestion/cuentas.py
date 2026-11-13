@@ -68,6 +68,9 @@ class CuentaViewSet(viewsets.ModelViewSet):
         resultados = []
         correos_csv = set()
         for numero, fila in enumerate(filas, start=2):
+            if None in fila or any(valor is None for valor in fila.values()):
+                resultados.append({"fila": numero, "error": "La fila no tiene exactamente tres columnas."})
+                continue
             correo = (fila.get("email") or "").strip().lower()
             if correo in correos_csv:
                 resultados.append({"fila": numero, "error": "Correo repetido en el CSV."})

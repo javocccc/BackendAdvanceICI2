@@ -46,7 +46,9 @@ class ExpedienteAPITests(TestCase):
         self.client.force_authenticate(self.coordinador)
         nuevo = {
             "nombre": "Valentina Soto", "rut": "22.222.222-2", "anio_egreso": 2026,
-            "semestre_egreso": 1, "fecha_examen": "2026-11-04",
+            "semestre_egreso": 1, "fecha_examen": "2026-11-04", "nota_examen": "6.2",
+            "profesor_guia": "María Fuentes", "informante_1": "Carlos Vega",
+            "informante_2": "Paula Torres",
         }
         creado = self.client.post("/api/expedientes/", nuevo)
         self.assertEqual(creado.status_code, 201, creado.data)
@@ -61,7 +63,9 @@ class ExpedienteAPITests(TestCase):
         self.client.force_authenticate(self.admin)
         datos = {
             "nombre": "Otro", "rut": "12.345.678-0", "anio_egreso": 2025,
-            "semestre_egreso": 1, "fecha_examen": "2026-11-04",
+            "semestre_egreso": 1, "fecha_examen": "2026-11-04", "nota_examen": "6.1",
+            "profesor_guia": "María Fuentes", "informante_1": "Carlos Vega",
+            "informante_2": "Paula Torres",
         }
         self.assertEqual(self.client.post("/api/expedientes/", datos).status_code, 400)
         datos["rut"] = "123456785"
