@@ -36,6 +36,7 @@ class Command(BaseCommand):
         muestras = (
             ("12.345.678-5", "Camila Rojas", date(2026, 10, 15)),
             ("11.111.111-1", "Diego Pérez", date(2026, 10, 22)),
+            ("24.680.246-7", "Valentina Soto Araya", date(2026, 11, 20)),
         )
         for rut, nombre, fecha in muestras:
             Expediente.objects.get_or_create(rut=rut, defaults={

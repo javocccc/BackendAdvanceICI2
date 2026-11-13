@@ -53,6 +53,24 @@ class ValidadoresAPITests(TestCase):
         respuesta = self.client.post("/api/expedientes/", repetidos, format="json")
         self.assertEqual(respuesta.status_code, 400, respuesta.data)
 
+    def test_nombre_expediente_no_admite_cifras(self):
+        for nombre in ("2", "Camila2", "123456"):
+            with self.subTest(nombre=nombre):
+                respuesta = self.client.post(
+                    "/api/expedientes/", {**self.expediente_valido, "nombre": nombre}, format="json"
+                )
+                self.assertEqual(respuesta.status_code, 400, respuesta.data)
+                self.assertIn("nombre", respuesta.data)
+        valido = self.client.post(
+            "/api/expedientes/", {**self.expediente_valido, "nombre": "María-José O'Connor"}, format="json"
+        )
+        self.assertEqual(valido.status_code, 201, valido.data)
+        edicion = self.client.patch(
+            f"/api/expedientes/{valido.data['id']}/", {"nombre": "2"}, format="json"
+        )
+        self.assertEqual(edicion.status_code, 400, edicion.data)
+        self.assertEqual(Expediente.objects.get(pk=valido.data["id"]).nombre, "María-José O'Connor")
+
     def test_raw_json_rechaza_claves_ajenas_y_campos_de_solo_lectura(self):
         for campo, valor in (("anioEgreso", 2026), ("colegiatura", "al-dia"), ("id", 99)):
             with self.subTest(campo=campo):

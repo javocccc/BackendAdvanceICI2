@@ -68,6 +68,17 @@ class ExpedienteSerializer(CamposJsonEsperadosMixin, serializers.ModelSerializer
             raise serializers.ValidationError("Ya existe un expediente con ese RUT.")
         return normalizado
 
+    def validate_nombre(self, valor):
+        # Los nombres admiten tildes y signos habituales, pero no cifras.
+        signos = {" ", "-", "'", "’", "."}
+        if not any(letra.isalpha() for letra in valor) or any(
+            not (letra.isalpha() or letra in signos) for letra in valor
+        ):
+            raise serializers.ValidationError(
+                "El nombre solo puede contener letras, espacios, guiones, apóstrofos y puntos."
+            )
+        return valor
+
     def validate(self, attrs):
         # La comisión de examen no puede repetir a un docente en dos puestos.
         campos = ("profesor_guia", "informante_1", "informante_2", "informante_adicional")
