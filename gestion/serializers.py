@@ -129,9 +129,21 @@ class DocumentoExpedienteSerializer(serializers.ModelSerializer):
 
 
 class CargaDocumentosSerializer(serializers.Serializer):
-    # En multipart/form-data se repite la clave "archivos" para cada archivo.
-    archivos = serializers.ListField(child=serializers.FileField(), min_length=1, max_length=20)
-    expedientes = serializers.ListField(child=serializers.IntegerField(min_value=1), required=False)
+    # El template permite elegir varios archivos desde la API navegable de DRF.
+    archivos = serializers.ListField(
+        child=serializers.FileField(), min_length=1, max_length=20,
+        style={"template": "gestion/multiple_file_input.html"},
+    )
+    expedientes = serializers.CharField(
+        help_text="IDs de destino separados por comas, uno por archivo y en el mismo orden."
+    )
+
+
+class CargaDocumentosExpedienteSerializer(serializers.Serializer):
+    archivos = serializers.ListField(
+        child=serializers.FileField(), min_length=1, max_length=20,
+        style={"template": "gestion/multiple_file_input.html"},
+    )
 
 
 class CambioColegiaturaSerializer(serializers.ModelSerializer):

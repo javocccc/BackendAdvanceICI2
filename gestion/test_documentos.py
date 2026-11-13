@@ -81,6 +81,14 @@ class DocumentosAPITests(TestCase):
         self.assertEqual(DocumentoExpediente.objects.count(), 4)
         self.assertEqual(DocumentoExpediente.objects.filter(tipo="docx").count(), 1)
 
+    def test_formulario_acepta_ids_separados_por_comas(self):
+        respuesta = self.client.post("/api/documentos/carga-masiva/", {
+            "expedientes": f"{self.uno.pk}, {self.dos.pk}",
+            "archivos": [archivo("a.pdf"), archivo("b.pdf")],
+        }, format="multipart")
+        self.assertEqual(respuesta.status_code, 201, respuesta.data)
+        self.assertEqual([item["expediente"] for item in respuesta.data], [self.uno.pk, self.dos.pk])
+
     def test_lote_invalido_no_guarda_documentos(self):
         url = f"/api/expedientes/{self.uno.pk}/documentos/"
         respuesta = self.client.post(url, {

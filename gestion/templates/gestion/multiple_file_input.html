@@ -1,0 +1,8 @@
+<div class="form-group {% if field.errors %}has-error{% endif %}">
+  <label class="col-sm-2 control-label" for="id_{{ field.name }}">{{ field.label }}</label>
+  <div class="col-sm-10">
+    <input id="id_{{ field.name }}" name="{{ field.name }}" type="file" multiple required>
+    <p class="help-block">Selecciona hasta 20 archivos (menos de 10 MB cada uno).</p>
+    {% for error in field.errors %}<span class="help-block">{{ error }}</span>{% endfor %}
+  </div>
+</div>

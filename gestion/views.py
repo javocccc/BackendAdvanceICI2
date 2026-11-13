@@ -14,7 +14,8 @@ from .documentos import MAX_ARCHIVOS, validar_documento
 from .models import Acta, CambioColegiatura, DocumentoExpediente, Expediente, PerfilUsuario, RegistroAuditoria
 from .permissions import PermisoActa, PermisoExpediente
 from .serializers import (
-    ActaSerializer, CambioColegiaturaSerializer, CargaDocumentosSerializer,
+    ActaSerializer, CambioColegiaturaSerializer, CargaDocumentosExpedienteSerializer,
+    CargaDocumentosSerializer,
     DocumentoExpedienteSerializer, ExpedienteSerializer,
     NuevoEstadoColegiaturaSerializer, PerfilUsuarioSerializer, RegistroAuditoriaSerializer,
 )
@@ -88,7 +89,7 @@ class ExpedienteViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True, methods=["get", "post"], url_path="documentos",
-        parser_classes=[MultiPartParser, FormParser], serializer_class=CargaDocumentosSerializer,
+        parser_classes=[MultiPartParser, FormParser], serializer_class=CargaDocumentosExpedienteSerializer,
     )
     def documentos(self, request, pk=None):
         expediente = self.get_object()
@@ -159,6 +160,9 @@ class DocumentoExpedienteViewSet(
     def carga_masiva(self, request):
         archivos = request.FILES.getlist("archivos")
         ids = request.data.getlist("expedientes")
+        # El formulario navegable envía "1,2"; otros clientes pueden repetir la clave.
+        if len(ids) == 1 and "," in ids[0]:
+            ids = [valor.strip() for valor in ids[0].split(",")]
         if len(ids) != len(archivos):
             raise ValidationError({"expedientes": "Repita el identificador del expediente por cada archivo."})
         if any(not valor.isdecimal() or int(valor) < 1 for valor in ids):
