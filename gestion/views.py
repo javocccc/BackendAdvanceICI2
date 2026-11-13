@@ -156,8 +156,10 @@ class DocumentoExpedienteViewSet(
             return DocumentoExpediente.objects.filter(expediente_id=perfil.expediente_id)
         return DocumentoExpediente.objects.all()
 
-    @action(detail=False, methods=["post"], url_path="carga-masiva", serializer_class=CargaDocumentosSerializer)
+    @action(detail=False, methods=["get", "post"], url_path="carga-masiva", serializer_class=CargaDocumentosSerializer)
     def carga_masiva(self, request):
+        if request.method == "GET":
+            return Response({"archivos": [], "expedientes": ""})
         archivos = request.FILES.getlist("archivos")
         ids = request.data.getlist("expedientes")
         # El formulario navegable envía "1,2"; otros clientes pueden repetir la clave.

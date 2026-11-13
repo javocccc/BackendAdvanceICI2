@@ -89,6 +89,11 @@ class DocumentosAPITests(TestCase):
         self.assertEqual(respuesta.status_code, 201, respuesta.data)
         self.assertEqual([item["expediente"] for item in respuesta.data], [self.uno.pk, self.dos.pk])
 
+    def test_api_navegable_muestra_selector_multiple(self):
+        respuesta = self.client.get("/api/documentos/carga-masiva/", HTTP_ACCEPT="text/html")
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertIn(b'type="file" multiple', respuesta.content)
+
     def test_lote_invalido_no_guarda_documentos(self):
         url = f"/api/expedientes/{self.uno.pk}/documentos/"
         respuesta = self.client.post(url, {
