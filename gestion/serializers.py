@@ -26,6 +26,18 @@ class CamposJsonEsperadosMixin:
         return super().to_internal_value(data)
 
 
+def validar_nombre_persona(valor):
+    # La regla se comparte entre el estudiante y los integrantes de la comisión.
+    signos = {" ", "-", "'", "’", "."}
+    if not any(letra.isalpha() for letra in valor) or any(
+        not (letra.isalpha() or letra in signos) for letra in valor
+    ):
+        raise serializers.ValidationError(
+            "El nombre solo puede contener letras, espacios, guiones, apóstrofos y puntos."
+        )
+    return valor
+
+
 class PerfilUsuarioSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(source="usuario.email", read_only=True)
     expediente_id = serializers.IntegerField(source="expediente.id", read_only=True)
@@ -45,9 +57,12 @@ class ExpedienteSerializer(CamposJsonEsperadosMixin, serializers.ModelSerializer
     nota_examen = serializers.DecimalField(
         max_digits=2, decimal_places=1, min_value=Decimal("1.0"), max_value=Decimal("7.0")
     )
-    profesor_guia = serializers.CharField(max_length=180)
-    informante_1 = serializers.CharField(max_length=180)
-    informante_2 = serializers.CharField(max_length=180)
+    profesor_guia = serializers.CharField(max_length=180, validators=[validar_nombre_persona])
+    informante_1 = serializers.CharField(max_length=180, validators=[validar_nombre_persona])
+    informante_2 = serializers.CharField(max_length=180, validators=[validar_nombre_persona])
+    informante_adicional = serializers.CharField(
+        max_length=180, required=False, allow_blank=True, validators=[validar_nombre_persona]
+    )
 
     class Meta:
         model = Expediente
@@ -69,15 +84,7 @@ class ExpedienteSerializer(CamposJsonEsperadosMixin, serializers.ModelSerializer
         return normalizado
 
     def validate_nombre(self, valor):
-        # Los nombres admiten tildes y signos habituales, pero no cifras.
-        signos = {" ", "-", "'", "’", "."}
-        if not any(letra.isalpha() for letra in valor) or any(
-            not (letra.isalpha() or letra in signos) for letra in valor
-        ):
-            raise serializers.ValidationError(
-                "El nombre solo puede contener letras, espacios, guiones, apóstrofos y puntos."
-            )
-        return valor
+        return validar_nombre_persona(valor)
 
     def validate(self, attrs):
         # La comisión de examen no puede repetir a un docente en dos puestos.

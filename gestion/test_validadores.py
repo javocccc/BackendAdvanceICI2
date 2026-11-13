@@ -71,6 +71,44 @@ class ValidadoresAPITests(TestCase):
         self.assertEqual(edicion.status_code, 400, edicion.data)
         self.assertEqual(Expediente.objects.get(pk=valido.data["id"]).nombre, "María-José O'Connor")
 
+    def test_docentes_rechazan_cifras_al_crear_y_editar(self):
+        campos = ("profesor_guia", "informante_1", "informante_2", "informante_adicional")
+        for campo in campos:
+            for nombre in ("2", "Ana2"):
+                with self.subTest(campo=campo, nombre=nombre):
+                    respuesta = self.client.post(
+                        "/api/expedientes/", {**self.expediente_valido, campo: nombre}, format="json"
+                    )
+                    self.assertEqual(respuesta.status_code, 400, respuesta.data)
+                    self.assertIn(campo, respuesta.data)
+        formulario = self.client.post(
+            "/api/expedientes/", {**self.expediente_valido, "profesor_guia": "2"}, format="multipart"
+        )
+        self.assertEqual(formulario.status_code, 400, formulario.data)
+        self.assertIn("profesor_guia", formulario.data)
+
+        creado = self.client.post(
+            "/api/expedientes/",
+            {**self.expediente_valido, "informante_adicional": "Ana-María O'Connor"},
+            format="json",
+        )
+        self.assertEqual(creado.status_code, 201, creado.data)
+        expediente = Expediente.objects.get(pk=creado.data["id"])
+        for campo in campos:
+            with self.subTest(edicion=campo):
+                anterior = getattr(expediente, campo)
+                respuesta = self.client.patch(
+                    f"/api/expedientes/{expediente.pk}/", {campo: "2"}, format="json"
+                )
+                self.assertEqual(respuesta.status_code, 400, respuesta.data)
+                self.assertIn(campo, respuesta.data)
+                expediente.refresh_from_db()
+                self.assertEqual(getattr(expediente, campo), anterior)
+        quitar_opcional = self.client.patch(
+            f"/api/expedientes/{expediente.pk}/", {"informante_adicional": ""}, format="json"
+        )
+        self.assertEqual(quitar_opcional.status_code, 200, quitar_opcional.data)
+
     def test_raw_json_rechaza_claves_ajenas_y_campos_de_solo_lectura(self):
         for campo, valor in (("anioEgreso", 2026), ("colegiatura", "al-dia"), ("id", 99)):
             with self.subTest(campo=campo):
